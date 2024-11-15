@@ -1,14 +1,35 @@
+#Укажите группу для доступа к коллекции
+$UserGroup = "Domain Users"
+
 #Установщик ПО должен быть в одной папке со скриптом
 $path = $PSScriptRoot
+
+#имя файла установщика
 $program = 'CrystalDiskInfo9_3_1.exe'
+
 #путь к установленной программе
 $pathInstalledProgram = "C:\Program Files\CrystalDiskInfo\DiskInfo64.exe"
 $displayName = 'CrystalDiskInfo'
 $silentInstallKey = '/VERYSILENT /NORESTART'
-$DOMAIN = $env:USERDOMAIN
-$rdServer [System.Net.Dns]::GetHostByName(($env:COMPUTERNAME)).HostName
+
+#$DOMAIN = $env:USERDOMAIN
+$fullDomain =(Get-WmiObject Win32_ComputerSystem).Domain
+$DomainParts = $fullDomain.Split(".")
+$DN = ($DomainParts | % {"DC=$_"}) -join ","
+$LDAPPath = "LDAP://$DN"
+$dirSearch = New-Object System.DirectoryServices.DirectorySearcher
+$dirSearch.SearchRoot = New-Object System.DirectoryServices.DirectoryEntry($ldapPath)
+$dirSearch.Filter = "(CN=Domain Users)"
+$dirSearch.PropertiesToLoad.Add("CN")
+$dirSearch.PropertiesToLoad.Add("sAMAccountName")
+$dirSearch.PropertiesToLoad.Add("description")
+$resultSearch = $dirSearch.FindOne()
+$SAN = $resultSearch.Properties.sAMAccountName
+$CN = $resultSearch.Properties.CN
+if($true){}
+$rdServer = [System.Net.Dns]::GetHostByName(($env:COMPUTERNAME)).HostName
 $CollectionName = "PAM"
-$UserGroup = "$DOMAIN\Domain Users"
+
 $installString = $path + $program + " " + $silentInstallKey
 $ip = 'localhost'
 $roles = @("RDS-RD-SERVER", "RDS-CONNECTION-BROKER", "RDS-WEB-ACCESS")
