@@ -1,8 +1,8 @@
 #Укажите группу для доступа к коллекции
 $UserGroup = "Domain Users"
 
-#Установщик ПО должен быть в одной папке со скриптом
-$path = $PSScriptRoot
+
+
 
 #имя файла установщика
 $program = 'CrystalDiskInfo9_3_1.exe'
@@ -14,23 +14,13 @@ $silentInstallKey = '/VERYSILENT /NORESTART'
 
 #$DOMAIN = $env:USERDOMAIN
 $fullDomain =(Get-WmiObject Win32_ComputerSystem).Domain
-$DomainParts = $fullDomain.Split(".")
-$DN = ($DomainParts | % {"DC=$_"}) -join ","
-$LDAPPath = "LDAP://$DN"
-$dirSearch = New-Object System.DirectoryServices.DirectorySearcher
-$dirSearch.SearchRoot = New-Object System.DirectoryServices.DirectoryEntry($ldapPath)
-$dirSearch.Filter = "(CN=Domain Users)"
-$dirSearch.PropertiesToLoad.Add("CN")
-$dirSearch.PropertiesToLoad.Add("sAMAccountName")
-$dirSearch.PropertiesToLoad.Add("description")
-$resultSearch = $dirSearch.FindOne()
-$SAN = $resultSearch.Properties.sAMAccountName
-$CN = $resultSearch.Properties.CN
-if($true){}
+
 $rdServer = [System.Net.Dns]::GetHostByName(($env:COMPUTERNAME)).HostName
 $CollectionName = "PAM"
 
-$installString = $path + $program + " " + $silentInstallKey
+#Установщик ПО должен быть в одной папке со скриптом
+$installString = $PSScriptRoot + $program + " " + $silentInstallKey
+
 $ip = 'localhost'
 $roles = @("RDS-RD-SERVER", "RDS-CONNECTION-BROKER", "RDS-WEB-ACCESS")
 $result = (Get-WindowsFeature -Name $roles | select Installed).Installed
@@ -39,7 +29,7 @@ if (!($result[0])) {
     Exit
 }
 
-New-RDSessionDeployment -ConnectionBroker $rdserver  -WebAccessServer $rdserver  -SessionHost $rdserver 
+New-RDSessionDeployment -ConnectionBroker $rdserver -WebAccessServer $rdserver -SessionHost $rdserver 
 if ($Error[0]) {
     if ($Error[0].ToString() -eq 'A session-based desktop deployment is already present.'){
         Write-Host 'RDSessionDeployment installed' -ForegroundColor Yellow
