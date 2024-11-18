@@ -2,11 +2,16 @@ $ErrorActionPreference = "Stop"
 # FQDN сервера
 $name = Get-WmiObject Win32_ComputerSystem
 $rdServer = $name.DNSHostName + "." + $name.Domain
-#укажите сервера
+
+
+####################### переменные которые можно (нужно) менять #########################
+#####
+# укажите сервера (если надо)
+# если будете ставить Сервер лицензий тут же, то добавьте "RDS-LICENSING" в $roles 
+$LicenseServer = $rdserver  
 $ConnectionBroker = $rdserver 
 $WebAccessServer = $rdserver 
 $SessionHost =  $rdserver 
-
 # укажите AD группу для доступа к коллекции
 $UserGroup = "Domain Users"
 # укажите Имя коллекции
@@ -15,16 +20,18 @@ $CollectionName = "PAM"
 $program = 'CrystalDiskInfo9_3_1.exe'
 # аргументы тихой установки
 $silentInstallKey = '/VERYSILENT /NORESTART'
-#Установщик ПО должен быть в одной папке со скриптом
-$installString = $PSScriptRoot + $program + " " + $silentInstallKey
 # путь к установленной программе
 $pathInstalledProgram = "C:\Program Files\CrystalDiskInfo\DiskInfo64.exe"
 # отображаемое имя RemoteApp
 $displayName = 'CrystalDiskInfo'
-
-
 $ip = 'localhost'
-#подразумевается что на сервере не установлены никаки роли RDS
+#####
+#################################################################################№№№№№№№№
+
+#Установщик ПО должен быть в одной папке со скриптом 
+#(в путях не должно быть точек, кроме в расширениии файла)
+$installString = $PSScriptRoot + $program + " " + $silentInstallKey
+#подразумевается что на сервере не установлены никакие роли RDS
 $roles = @("RDS-RD-SERVER", "RDS-CONNECTION-BROKER", "RDS-WEB-ACCESS")
 $result = (Get-WindowsFeature -Name $roles | select Installed).Installed
 if (!($result[0])) {
@@ -38,7 +45,7 @@ if (!(Get-RDServer)) {
 }  else { Write-Host 'RDSessionDeployment already installed' -ForegroundColor Yellow}
 # указание сервера лицензий
 if (!((Get-RDLicenseConfiguration).LicenseServer)) {
-    Set-RDLicenseConfiguration -LicenseServer $rdserver -Mode PerUser -ConnectionBroker $rdserver -Force
+    Set-RDLicenseConfiguration -LicenseServer $LicenseServer -Mode PerUser -ConnectionBroker $ConnectionBroker -Force
     Write-Host 'License  installed' -ForegroundColor Green
 } else { Write-Host 'License already installed' -ForegroundColor Yellow}
 #создание коллекции
