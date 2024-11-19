@@ -1,4 +1,3 @@
-$ErrorActionPreference = "Stop"
 # FQDN сервера
 $name = Get-WmiObject Win32_ComputerSystem
 $rdServer = $name.DNSHostName + "." + $name.Domain
@@ -8,29 +7,30 @@ $rdServer = $name.DNSHostName + "." + $name.Domain
 #####
 # укажите сервера (если надо)
 # если будете ставить Сервер лицензий тут же, то добавьте "RDS-LICENSING" в $roles 
-$LicenseServer = $rdserver  
-$ConnectionBroker = $rdserver 
-$WebAccessServer = $rdserver 
-$SessionHost =  $rdserver 
+# и расскоментируйте $licenseServer если хотите указать на сервер лицензий
+#$licenseServer = $rdserver  
+$connectionBroker = $rdserver 
+$webAccessServer = $rdserver 
+$sessionHost =  $rdserver 
 # укажите AD группу для доступа к коллекции
-$UserGroup = "Domain Users"
+$userGroup = "Domain Users"
 # укажите Имя коллекции
-$CollectionName = "PAM"
+$collectionName = "PAM"
 # файл установщика
-$program = 'CrystalDiskInfo9_3_1.exe'
+$programExe = 'CrystalDiskInfo9_3_1.exe'
 # аргументы тихой установки
 $silentInstallKey = '/VERYSILENT /NORESTART'
 # путь к установленной программе
 $pathInstalledProgram = "C:\Program Files\CrystalDiskInfo\DiskInfo64.exe"
 # отображаемое имя RemoteApp
 $displayName = 'CrystalDiskInfo'
-$ip = 'localhost'
+$IP = 'localhost'
 #####
 #################################################################################№№№№№№№№
 
 #Установщик ПО должен быть в одной папке со скриптом 
 #(в путях не должно быть точек, кроме в расширениии файла)
-$installString = $PSScriptRoot + "\" + $program + " " + $silentInstallKey
+$installString = $PSScriptRoot + "\" + $programExe + " " + $silentInstallKey
 #подразумевается что на сервере не установлены никакие роли RDS
 $roles = @("RDS-RD-SERVER", "RDS-CONNECTION-BROKER", "RDS-WEB-ACCESS")
 $result = (Get-WindowsFeature -Name $roles | select Installed).Installed
@@ -50,58 +50,85 @@ Read-Host
 Exit
 }
 
-
+$multiLineText = @"
+####################
+####################
+####################
+####################
+####################
+####################
+####################
+чтобы было видно вывод во время деплоя
+####################
+####################
+####################
+####################
+####################
+####################
+####################
+####################
+####################
+####################
+####################
+####################
+"@
 #деплой RDS служб
 if (!(Get-RDServer)) {
     try {
-        New-RDSessionDeployment -ConnectionBroker $ConnectionBroker -WebAccessServer $WebAccessServer -SessionHost $SessionHost -ErrorAction Stop
+        New-RDSessionDeployment -ConnectionBroker $connectionBroker -WebAccessServer $webAccessServer -SessionHost $sessionHost -ErrorAction Stop
     } catch {
 	    Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
     }
-    Write-Host 'RDSessionDeployment installed' -ForegroundColor Green
+    Write-Host $multiLineText -ForegroundColor Green
+    Write-Host 'Выполнен деплой RDS' -ForegroundColor Green
+
+    
+
 } else { 
-    Write-Host 'RDSessionDeployment already installed' -ForegroundColor Yellow
+    Write-Host 'Деплой RDS уже выполенен' -ForegroundColor Yellow
 }
 
 # указание сервера лицензий
-if ((Get-RDLicenseConfiguration).LicenseServer -ne $LicenseServer) {
+if ((Get-RDLicenseConfiguration).LicenseServer -ne $licenseServer) {
     try {
-        Set-RDLicenseConfiguration -LicenseServer $LicenseServer -Mode PerUser -ConnectionBroker $ConnectionBroker -Force -ErrorAction Stop
+        Set-RDLicenseConfiguration -LicenseServer $licenseServer -Mode PerUser -ConnectionBroker $connectionBroker -Force -ErrorAction Stop
     } catch {
         Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
     }
-    Write-Host 'License installed' -ForegroundColor Green
+    Write-Host 'Указан сервер лицензий' -ForegroundColor Green
 } else {
-    Write-Host 'License already installed' -ForegroundColor Yellow
+    Write-Host 'Сервер лицензий уже указан' -ForegroundColor Yellow
 }
 
 #создание коллекции
 if (!(Get-RDSessionCollection)){
     try {
-        New-RDSessionCollection -CollectionName $CollectionName -CollectionDescription "Collection for $CollectionName" -SessionHost $SessionHost -ConnectionBroker $ConnectionBroker -PooledUnmanaged -ErrorAction Stop
+        New-RDSessionCollection -CollectionName $collectionName -CollectionDescription "Collection for $collectionName" -SessionHost $sessionHost -ConnectionBroker $connectionBroker -PooledUnmanaged -ErrorAction Stop
     } catch {
         Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
     }
-    Write-Host "RDSessionCollection `"$CollectionName`" created" -ForegroundColor Green
+    Write-Host "Коллекция `"$collectionName`" создана" -ForegroundColor Green
 } else { 
-    Write-Host "RDSessionCollection `"$CollectionName`" already exist" -ForegroundColor Yellow 
+    Write-Host "Коллекция `"$collectionName`" уже существует" -ForegroundColor Yellow 
 }
 
 # изменение группы для коллекции
-$userGroupState = (Get-RDSessionCollectionConfiguration -CollectionName $CollectionName -UserGroup).UserGroup
+$userGroupState = (Get-RDSessionCollectionConfiguration -CollectionName $collectionName -UserGroup).UserGroup
 if (($userGroupState.split("\")[1] -ne $userGroup)){
     try {
-	    Set-RDSessionCollectionConfiguration -CollectionName $CollectionName -UserGroup $userGroup -ErrorAction Stop
+	    Set-RDSessionCollectionConfiguration -CollectionName $collectionName -UserGroup $userGroup -ErrorAction Stop
     } catch {
-        Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
+        Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.ScriptStackTrace.split(",")[0]
     }
-	Write-Host "UserGroup = `"$userGroup`"" -ForegroundColor Grenn
+	Write-Host "UserGroup = `"$userGroup`"" -ForegroundColor Green
 } else {
     Write-Host "UserGroup = `"$userGroup`"" -ForegroundColor Yellow
 }
 
 # установка ПО
-if (!(Test-Path $pathInstalledProgram)) { 
+$InstalledSoftware = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall"
+foreach ($obj in $InstalledSoftware) { if ($obj.GetValue('DisplayName') -like "$displayName*" ) {$softName = $displayName} }
+if (!($softName)) { 
     try {
         Invoke-Expression -Command $installString -ErrorAction Stop
     } catch {
@@ -116,7 +143,7 @@ if (!(Test-Path $pathInstalledProgram)) {
 #создание RemoteApp
 if (!(Get-RDRemoteApp -DisplayName $displayName)){
     try {
-        New-RDRemoteApp -CollectionName "PAM" -DisplayName $displayName -FilePath $pathInstalledProgram
+        New-RDRemoteApp -CollectionName "PAM" -DisplayName $displayName -FilePath $pathInstalledProgram -ErrorAction Stop | Out-Null
     } catch {
         Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
     }
@@ -127,7 +154,7 @@ if (!(Get-RDRemoteApp -DisplayName $displayName)){
 
 #создание ссылки на Рабочем столе
 $desktopPath = [System.Environment]::GetFolderPath('Desktop')
-$targetPath = "https://$ip/RDWeb/Pages/en-US/Default.aspx"
+$targetPath = "https://$IP/RDWeb/Pages/en-US/Default.aspx"
 $shortcutPath = Join-Path -Path $desktopPath -ChildPath "RemoteApp.lnk"
 if (!(test-path $desktopPath"RemoteApp.lnk")){
 $WshShell = New-Object -ComObject WScript.Shell
@@ -135,7 +162,7 @@ $shortcut = $WshShell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $targetPath
 $shortcut.Save()
 }
-
+Write-Host "На рабочем столе создана ссылка RemoteApp.lnk" -ForegroundColor Green 
 Write-Host "Установка завершена. Нажмите Enter и перезагрузите компьютер"
 Read-Host
 Restart-Computer -Confirm:$true
