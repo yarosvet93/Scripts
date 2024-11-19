@@ -30,7 +30,7 @@ $ip = 'localhost'
 
 #Установщик ПО должен быть в одной папке со скриптом 
 #(в путях не должно быть точек, кроме в расширениии файла)
-$installString = $PSScriptRoot + $program + " " + $silentInstallKey
+$installString = $PSScriptRoot + "\" + $program + " " + $silentInstallKey
 #подразумевается что на сервере не установлены никакие роли RDS
 $roles = @("RDS-RD-SERVER", "RDS-CONNECTION-BROKER", "RDS-WEB-ACCESS")
 $result = (Get-WindowsFeature -Name $roles | select Installed).Installed
@@ -56,42 +56,74 @@ if (!(Get-RDServer)) {
     try {
         New-RDSessionDeployment -ConnectionBroker $ConnectionBroker -WebAccessServer $WebAccessServer -SessionHost $SessionHost -ErrorAction Stop
     } catch {
-	Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
+	    Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
     }
     Write-Host 'RDSessionDeployment installed' -ForegroundColor Green
-}  else { Write-Host 'RDSessionDeployment already installed' -ForegroundColor Yellow}
+} else { 
+    Write-Host 'RDSessionDeployment already installed' -ForegroundColor Yellow
+}
 
 # указание сервера лицензий
-if (!((Get-RDLicenseConfiguration).LicenseServer)) {
-    Set-RDLicenseConfiguration -LicenseServer $LicenseServer -Mode PerUser -ConnectionBroker $ConnectionBroker -Force
-    Write-Host 'License  installed' -ForegroundColor Green
-} else { Write-Host 'License already installed' -ForegroundColor Yellow}
+if ((Get-RDLicenseConfiguration).LicenseServer -ne $LicenseServer) {
+    try {
+        Set-RDLicenseConfiguration -LicenseServer $LicenseServer -Mode PerUser -ConnectionBroker $ConnectionBroker -Force -ErrorAction Stop
+    } catch {
+        Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
+    }
+    Write-Host 'License installed' -ForegroundColor Green
+} else {
+    Write-Host 'License already installed' -ForegroundColor Yellow
+}
 
 #создание коллекции
 if (!(Get-RDSessionCollection)){
-    New-RDSessionCollection -CollectionName $CollectionName -CollectionDescription "Collection for $CollectionName" -SessionHost $SessionHost -ConnectionBroker $ConnectionBroker -PooledUnmanaged -Verbose
-    Write-Host "RDSessionCollection $CollectionName created" -ForegroundColor Green
-} else { Write-Host "RDSessionCollection $CollectionName already exist" -ForegroundColor Yellow }
+    try {
+        New-RDSessionCollection -CollectionName $CollectionName -CollectionDescription "Collection for $CollectionName" -SessionHost $SessionHost -ConnectionBroker $ConnectionBroker -PooledUnmanaged -ErrorAction Stop
+    } catch {
+        Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
+    }
+    Write-Host "RDSessionCollection `"$CollectionName`" created" -ForegroundColor Green
+} else { 
+    Write-Host "RDSessionCollection `"$CollectionName`" already exist" -ForegroundColor Yellow 
+}
 
 # изменение группы для коллекции
 $userGroupState = (Get-RDSessionCollectionConfiguration -CollectionName $CollectionName -UserGroup).UserGroup
 if (($userGroupState.split("\")[1] -ne $userGroup)){
-	Set-RDSessionCollectionConfiguration -CollectionName $CollectionName -UserGroup $userGroup
-	Write-Host "UserGroup = $userGroup" -ForegroundColor Grenn
-} else {Write-Host "UserGroup = $userGroup" -ForegroundColor Yellow}
+    try {
+	    Set-RDSessionCollectionConfiguration -CollectionName $CollectionName -UserGroup $userGroup -ErrorAction Stop
+    } catch {
+        Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
+    }
+	Write-Host "UserGroup = `"$userGroup`"" -ForegroundColor Grenn
+} else {
+    Write-Host "UserGroup = `"$userGroup`"" -ForegroundColor Yellow
+}
 
 # установка ПО
 if (!(Test-Path $pathInstalledProgram)) { 
-Invoke-Expression $installString 
-Write-Host "create $pathInstalledProgram istalled" -ForegroundColor Green 
-Start-Sleep 5
-} else {Write-Host "Program $pathInstalledProgram - already installed " -ForegroundColor Yellow }
+    try {
+        Invoke-Expression -Command $installString -ErrorAction Stop
+    } catch {
+        Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
+    }
+    Write-Host "Программа `"$displayName`" - установлена" -ForegroundColor Green 
+    Start-Sleep 2
+} else {
+    Write-Host "Программа `"$displayName`" - уже существует " -ForegroundColor Yellow 
+}
 
 #создание RemoteApp
 if (!(Get-RDRemoteApp -DisplayName $displayName)){
-New-RDRemoteApp -CollectionName "PAM" -DisplayName $displayName -FilePath $pathInstalledProgram
-Write-Host "RemoteApp $displayName - installed " -ForegroundColor Green 
-} else {Write-Host "RemoteApp $displayName - already installed " -ForegroundColor Yellow }
+    try {
+        New-RDRemoteApp -CollectionName "PAM" -DisplayName $displayName -FilePath $pathInstalledProgram
+    } catch {
+        Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
+    }
+    Write-Host "RemoteApp приложение `"$displayName`" - установлено " -ForegroundColor Green 
+} else {
+    Write-Host "RemoteApp приложение `"$displayName`" - уже существует " -ForegroundColor Yellow 
+}
 
 #создание ссылки на Рабочем столе
 $desktopPath = [System.Environment]::GetFolderPath('Desktop')
