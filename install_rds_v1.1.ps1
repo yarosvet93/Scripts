@@ -58,24 +58,23 @@ $multiLineText = @"
 ####################
 ####################
 ####################
-чтобы было видно вывод во время деплоя
-####################
-####################
-####################
-####################
-####################
-####################
-####################
-####################
-####################
-####################
+####            ####
+####   DEPLOY   ####
+####    RDS     ####
+####  SERVICES  ####
+####            ####
 ####################
 ####################
 "@
 #деплой RDS служб
-if (!(Get-RDServer)) {
+
+if (!(Get-RDServer -ErrorAction SilentlyContinue)) {
     try {
-        New-RDSessionDeployment -ConnectionBroker $connectionBroker -WebAccessServer $webAccessServer -SessionHost $sessionHost -ErrorAction Stop
+        Write-Host "Деплоим RDS"
+        New-RDSessionDeployment `
+        -ConnectionBroker $connectionBroker `
+        -WebAccessServer $webAccessServer `
+        -SessionHost $sessionHost -ErrorAction Stop
     } catch {
 	    Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
     }
@@ -91,6 +90,7 @@ if (!(Get-RDServer)) {
 # указание сервера лицензий
 if ((Get-RDLicenseConfiguration).LicenseServer -ne $licenseServer) {
     try {
+        Write-Host 'Указываем сервер лицензий'
         Set-RDLicenseConfiguration -LicenseServer $licenseServer -Mode PerUser -ConnectionBroker $connectionBroker -Force -ErrorAction Stop
     } catch {
         Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
@@ -103,7 +103,13 @@ if ((Get-RDLicenseConfiguration).LicenseServer -ne $licenseServer) {
 #создание коллекции
 if (!(Get-RDSessionCollection)){
     try {
-        New-RDSessionCollection -CollectionName $collectionName -CollectionDescription "Collection for $collectionName" -SessionHost $sessionHost -ConnectionBroker $connectionBroker -PooledUnmanaged -ErrorAction Stop
+        Write-Host "Создаем колеекцию `"$collectionName`"" 
+        New-RDSessionCollection `
+        -CollectionName $collectionName `
+        -CollectionDescription "Collection for $collectionName" `
+        -SessionHost $sessionHost `
+        -ConnectionBroker $connectionBroker `
+        -PooledUnmanaged -ErrorAction Stop | Out-Null
     } catch {
         Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
     }
@@ -116,6 +122,7 @@ if (!(Get-RDSessionCollection)){
 $userGroupState = (Get-RDSessionCollectionConfiguration -CollectionName $collectionName -UserGroup).UserGroup
 if (($userGroupState.split("\")[1] -ne $userGroup)){
     try {
+        Write-Host "Изменяем группу коллекции на `"$userGroup`"" 
 	    Set-RDSessionCollectionConfiguration -CollectionName $collectionName -UserGroup $userGroup -ErrorAction Stop
     } catch {
         Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.ScriptStackTrace.split(",")[0]
@@ -130,6 +137,7 @@ $InstalledSoftware = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVers
 foreach ($obj in $InstalledSoftware) { if ($obj.GetValue('DisplayName') -like "$displayName*" ) {$softName = $displayName} }
 if (!($softName)) { 
     try {
+        Write-Host "Устанавливаем  `"$displayName`"" 
         Invoke-Expression -Command $installString -ErrorAction Stop
     } catch {
         Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
