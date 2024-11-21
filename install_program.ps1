@@ -53,9 +53,9 @@ foreach ($program in $programs) {
 $clientpaht = 'C:\Program Files\EndpointClient\'
 try {
     Copy-Item -Path "${path}autoit-0.0.11\*" -Destination $clientpaht -Force
-    Write-Host "Файлы из autoit-0.0.11 успешно скопированы в $clientpaht ."
+    Write-Host "Файлы из autoit-0.0.11 успешно скопированы в $clientpaht"
     Copy-Item -Path "${path}sberdriver.exe" -Destination $clientpaht -Force
-    Write-Host "Файл sberdriver.exe успешно скопирован в $clientpaht ."
+    Write-Host "Файл sberdriver.exe успешно скопирован в $clientpaht"
 } catch {
     Write-Host "Ошибка при копировании: $($_.Exception.Message)"
 }
