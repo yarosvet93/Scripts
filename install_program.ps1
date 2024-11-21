@@ -1,4 +1,8 @@
 
+function Write-Success {
+    Write-Host "######### success ########`n" -ForegroundColor Green
+}
+
 $programs = @(
     @{
         Name = "VC_redist.x64";
@@ -30,11 +34,13 @@ $programs = @(
 foreach ($program in $programs) {
     try {
         if ($program.Path -match "\.msi$") {
-            Write-Host "Installing MSI: $($program.Name)"
+            Write-Host "Установка: $($program.Name)"
             Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$($program.Path)`" $($program.Args)" -Wait -ErrorAction Stop
+            Write-Success
         } elseif ($program.Path -match "\.exe$") {
-            Write-Host "Installing EXE: $($program.Name)"
+            Write-Host "Installing: $($program.Name)"
             Start-Process -FilePath $program.Path -ArgumentList $program.Args -Wait -ErrorAction Stop
+            Write-Success
         } else {
             Write-Host "Unknown installer type for $($program.Name)"
         }
@@ -43,5 +49,15 @@ foreach ($program in $programs) {
     }
 }
 
-Copy-Item C:\Distr\autoit-0.0.11\* 'C:\Program Files\EndpointClient\'
-Copy-Item C:\Distr\sberdriver.exe 'C:\Program Files\EndpointClient\'
+#чтобы не делать проверки при повторном запуске, просто -Force использую 
+$clientpaht = 'C:\Program Files\EndpointClient\'
+try {
+    Copy-Item -Path "${path}autoit-0.0.11\*" -Destination $clientpaht -Force
+    Write-Host "Файлы из autoit-0.0.11 успешно скопированы в $clientpaht ."
+    Copy-Item -Path "${path}sberdriver.exe" -Destination $clientpaht -Force
+    Write-Host "Файл sberdriver.exe успешно скопирован в $clientpaht ."
+} catch {
+    Write-Host "Ошибка при копировании: $($_.Exception.Message)"
+}
+
+
