@@ -30,6 +30,9 @@ $IP = 'localhost'
 
 #Установщик ПО должен быть в одной папке со скриптом
 $installString = $PSScriptRoot + "\" + $setupFile + " " + $silentInstallKey
+
+
+
 #подразумевается что на сервере не установлены никакие роли RDS
 $roles = @("RDS-RD-SERVER", "RDS-CONNECTION-BROKER", "RDS-WEB-ACCESS")
 $result = (Get-WindowsFeature -Name $roles | select Installed).Installed
@@ -37,6 +40,7 @@ if (!($result[0])) {
     Install-WindowsFeature -Name $roles -IncludeAllSubFeature -Restart
     Exit
 }
+
 function Stop-Install{
 	param(
 		[string]$ErrorMessage,
@@ -48,6 +52,7 @@ Write-Host "Нажмите Enter, чтобы выйти!"
 Read-Host
 Exit
 }
+
 function Write-Success {
     Write-Host "######### success ########`n" -ForegroundColor Green
 }
