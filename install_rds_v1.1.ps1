@@ -13,12 +13,14 @@ $connectionBroker = $rdserver
 $webAccessServer = $rdserver 
 $sessionHost =  $rdserver 
 # укажите AD группу для доступа к коллекции
-$userGroup = "Domain Users"
+$userGroup = "RDS_Users"
 # укажите Имя коллекции
 $collectionName = "PAM"
 $IP = 'localhost'
 #папка, где будут лежать все установщики
 $pathDistr = 'C:\Distr'
+$displayName = "EndpointClient"
+$pathInstalledProgram = "C:\Program Files\EndpointClient\WorkerEndpointClient.exe"
 #################################################################################№№№№№№№№
 function Write-Success {
     Write-Host "######### success ########`n" -ForegroundColor Green
@@ -35,38 +37,38 @@ Read-Host
 Exit
 }
 
-################## установка ПО ##################
+#################################### установка ПО #################################
 
 $programs = @(
     @{
         Name = "VC_redist.x64";
         Path = "${pathDistr}\VC_redist.x64 2019 (16.9)_14.28.29.exe";
         Args = "/install /quiet"
-        Check = {Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "Microsoft Visual C*2019*" }}
+        Check = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "Microsoft Visual C*2019*" }
     },
     @{
         Name = "EndpointService";
         Path = "${pathDistr}\EndpointService.msi";
         Args = "/quiet"
-        Check = {Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "EndpointService" }}
+        Check = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "EndpointService" }
     },
     @{
         Name = "EndpointClient";
         Path = "${pathDistr}\EndpointClient.msi";
         Args = "/quiet"
-        Check = {Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "EndpointClient" }}
+        Check = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "EndpointClient" }
     },
     @{
         Name = "dbeaver-ce-23.3.3-x86_64";
         Path = "${pathDistr}\dbeaver-ce-23.3.3-x86_64-setup.exe";
         Args = "/allusers /S"
-        Check = {Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "DBeaver*" }}
+        Check = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "DBeaver*" }
     },
     @{
         Name = "SberBrowser-win-x86";
         Path = "${pathDistr}\SberBrowser-win-x86-distrib.exe";
         Args = "-system-level"
-        Check = {Test-Path "C:\Program Files (x86)\SberBrowser\Application\sberbrowser.exe"}
+        Check = Test-Path "C:\Program Files (x86)\SberBrowser\Application\sberbrowser.exe"
     }
 )
 
@@ -103,30 +105,23 @@ try {
     Write-Host "Ошибка при копировании: $($_.Exception.Message)" -ForegroundColor Red
 }
 
-#############################################################################################
+###################################################################################
 
+
+################## установка RDS Windows Feature c перезагрузкой ##################
 #подразумевается что на сервере не установлены никакие роли RDS
 $roles = @("RDS-RD-SERVER", "RDS-CONNECTION-BROKER", "RDS-WEB-ACCESS")
 $result = (Get-WindowsFeature -Name $roles | select Installed).Installed
 if (!($result[0])) {
     Install-WindowsFeature -Name $roles -IncludeAllSubFeature -Restart
     Exit
+}else { 
+    Write-Host "Роли RDS уже установлены" -ForegroundColor Green 
 }
-
+###################################################################################
 
 
 $multiLineText = @"
-####################
-####################
-####################
-####################
-####################
-####################
-####################
-####################
-####################
-####################
-####################
 ####################
 ####            ####
 ####   DEPLOY   ####
@@ -136,7 +131,8 @@ $multiLineText = @"
 ####################
 
 "@
-#деплой RDS служб
+
+############################### деплой RDS служб ##################################
 
 if (!(Get-RDServer -ErrorAction SilentlyContinue)) {
     try {
@@ -153,7 +149,7 @@ if (!(Get-RDServer -ErrorAction SilentlyContinue)) {
     Write-Host "Деплой RDS уже выполенен`n" -ForegroundColor Yellow
 }
 
-# указание сервера лицензий
+####### указываем сервер лицензий #######
 if ((Get-RDLicenseConfiguration).LicenseServer -ne $licenseServer) {
     try {
         Write-Host "Указываем сервер лицензий`n"
@@ -166,7 +162,7 @@ if ((Get-RDLicenseConfiguration).LicenseServer -ne $licenseServer) {
     Write-Host "Сервер лицензий уже указан`n" -ForegroundColor Yellow
 }
 
-#создание коллекции
+###### создаем коллекцию PAM ######
 if (!(Get-RDSessionCollection)){
     try {
         Write-Host "Создаем колеекцию `"$collectionName`" `n" 
@@ -184,7 +180,7 @@ if (!(Get-RDSessionCollection)){
     Write-Host "Коллекция `"$collectionName`" уже существует`n" -ForegroundColor Yellow 
 }
 
-# изменение группы для коллекции
+####### изменяем группы коллекции на $userGroup #######
 $userGroupState = (Get-RDSessionCollectionConfiguration -CollectionName $collectionName -UserGroup).UserGroup
 if (($userGroupState.split("\")[1] -ne $userGroup)){
     try {
@@ -198,23 +194,7 @@ if (($userGroupState.split("\")[1] -ne $userGroup)){
     Write-Host "UserGroup = `"$userGroup`" `n" -ForegroundColor Yellow
 }
 
-# установка ПО
-$InstalledSoftware = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall"
-foreach ($obj in $InstalledSoftware) { if ($obj.GetValue('DisplayName') -like "$displayName*" ) {$softName = $displayName} }
-if (!($softName)) { 
-    try {
-        Write-Host "Устанавливаем  `"$displayName`" `n" 
-        Invoke-Expression -Command $installString -ErrorAction Stop
-    } catch {
-        Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
-    }
-    Write-Success
-    Start-Sleep 2
-} else {
-    Write-Host "Программа `"$displayName`" - уже существует`n" -ForegroundColor Yellow 
-}
-
-#создание RemoteApp
+####### создаем RemoteApp #######
 if (!(Get-RDRemoteApp -DisplayName $displayName)){
     try {
         Write-Host "Создаем RemoteApp приложение: `"$displayName`" `n" 
