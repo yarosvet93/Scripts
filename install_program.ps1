@@ -1,7 +1,3 @@
-function Write-Success {
-    Write-Host "######### success ########`n" -ForegroundColor Green
-}
-$pathDistr = 'C:\Distr'
 
 $programs = @(
     @{
