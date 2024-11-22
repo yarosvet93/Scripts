@@ -1,13 +1,12 @@
-# Указываем путь к папке
 $Path = "C:\Program Files\EndpointService"
 
-# 1. Отключаем наследование и конвертируем унаследованные права в явные
+# Отключаем наследование и сохраняем существующие правила
 Write-Output "Disabling inheritance and converting inherited permissions..."
 $acl = Get-Acl $Path
-$acl.SetAccessRuleProtection($true, $true) # Отключить наследование, сохранить существующие правила
+$acl.SetAccessRuleProtection($true, $true)
 Set-Acl -Path $Path -AclObject $acl
 
-# 2. Удаляем группу Users
+# Удаляем группу Users
 Write-Output "Removing 'Users' group permissions..."
 $acl = Get-Acl $Path
 $acl.Access | Where-Object { $_.IdentityReference -like "*\Users" } | ForEach-Object {
@@ -15,14 +14,14 @@ $acl.Access | Where-Object { $_.IdentityReference -like "*\Users" } | ForEach-Ob
 }
 Set-Acl -Path $Path -AclObject $acl
 
-# 3. Добавляем права для LOCAL SERVICE
+# Добавляем права для LOCAL SERVICE
 Write-Output "Adding 'LOCAL SERVICE' permissions..."
 $acl = Get-Acl $Path
 $rule = New-Object System.Security.AccessControl.FileSystemAccessRule("LOCAL SERVICE", "Modify, ReadAndExecute, ListDirectory, Read, Write", "ContainerInherit, ObjectInherit", "None", "Allow")
 $acl.AddAccessRule($rule)
 Set-Acl -Path $Path -AclObject $acl
 
-# 4. Применяем права ко всем дочерним объектам
+# Применяем права ко всем дочерним объектам
 Write-Output "Applying permissions to child objects..."
 $acl = Get-Acl $Path
 $acl.SetAccessRuleProtection($true, $false) # Заменить разрешения дочерних объектов
