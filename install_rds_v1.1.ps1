@@ -20,7 +20,11 @@ $IP = 'localhost'
 #папка, где будут лежать все установщики
 $pathDistr = 'C:\Distr'
 $displayName = "EndpointClient"
+$programFolder = 'C:\Program Files\EndpointClient'
+$clientpaht = 'C:\Program Files\EndpointClient\'
 $pathInstalledProgram = "C:\Program Files\EndpointClient\WorkerEndpointClient.exe"
+$sberPath = "C:\Program Files (x86)\SberBrowser\Application"
+
 #################################################################################№№№№№№№№
 function Write-Success {
     Write-Host "######### success ########`n" -ForegroundColor Green
@@ -95,11 +99,12 @@ foreach ($program in $programs) {
 }
 
 #чтобы не делать проверки при повторном запуске, просто -Force использую 
-$clientpaht = 'C:\Program Files\EndpointClient\'
 try {
     Copy-Item -Path "${pathDistr}\autoit-0.0.11\*" -Destination $clientpaht -Force -ErrorAction Stop
     Write-Host "Файлы из autoit-0.0.11 успешно скопированы в $clientpaht"
-    Copy-Item -Path "${pathDistr}\sberdriver.exe" -Destination $clientpaht -Force -ErrorAction Stop
+    Copy-Item -Path "${sberPath}\*" -Destination $clientpaht -Exclude "sberbrowser.exe"  -Force -Recurse -ErrorAction Stop
+    Write-Host "Файлы из ${sberPath} успешно скопированы в $clientpaht"
+    Copy-Item -Path "${pathDistr}\sberdriver.exe" -Destination $clientpaht -Force  -ErrorAction Stop
     Write-Host "Файл sberdriver.exe успешно скопирован в $clientpaht" -ForegroundColor Green
 } catch {
     Write-Host "Ошибка при копировании: $($_.Exception.Message)" -ForegroundColor Red
@@ -198,7 +203,7 @@ if (($userGroupState.split("\")[1] -ne $userGroup)){
 if (!(Get-RDRemoteApp -DisplayName $displayName)){
     try {
         Write-Host "Создаем RemoteApp приложение: `"$displayName`" `n" 
-        New-RDRemoteApp -CollectionName "PAM" -DisplayName $displayName -FilePath $pathInstalledProgram -ErrorAction Stop | Out-Null
+###!!!!!!!!!!!!!! New-RDRemoteApp -CollectionName "PAM" -DisplayName $displayName -FilePath $pathInstalledProgram -ErrorAction Stop | Out-Null
     } catch {
         Stop-Install -ErrorMessage $_.Exception.Message -ErrorProgram $_.InvocationInfo.MyCommand.Name
     }
@@ -218,6 +223,50 @@ $shortcut.TargetPath = $targetPath
 $shortcut.Save()
 }
 Write-Host "На рабочем столе создана ссылка RemoteApp.lnk`n" -ForegroundColor Green 
+
+######## Настройка Endpoint клиента в реестре ########
+$regKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\WorkerEndpointClient.exe"
+if (-not (Test-Path -Path $regKeyPath)) {
+    New-Item -Path $regKeyPath -Force | Out-Null
+    Write-Host "Ключ реестра создан: $regKeyPath" -ForegroundColor Green
+    Start-Sleep 1
+} else {
+    Write-Host "Ключ реестра уже существует: $regKeyPath" -ForegroundColor Yellow
+    Start-Sleep 1
+}
+
+Set-ItemProperty -Path $regKeyPath -Name "(Default)" -Value $pathInstalledProgram
+Write-Host "Параметр (Default) установлен: $pathInstalledProgram" -ForegroundColor Green
+Start-Sleep 1
+
+Set-ItemProperty -Path $regKeyPath -Name "Path" -Value $programFolder -Type ExpandString
+Write-Host "Параметр Path установлен: $programFolder" -ForegroundColor Green
+Start-Sleep 1
+#######################################################
+
+########### Корретировка групповых политик через реестр ###########
+$HKLMPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"
+$HKCUPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
+Set-ItemProperty -Path $HKLMPath -Name "KeepAliveEnable" -Value 1
+Write-Host "KeepAliveEnable = 1" -ForegroundColor Green
+Start-Sleep 1
+Set-ItemProperty -Path $HKLMPath -Name "KeepAliveInterval" -Value 60
+Write-Host "KeepAliveInterval = 60" -ForegroundColor Green
+Start-Sleep 1 
+Set-ItemProperty -Path $HKLMPath -Name "MaxInstanceCount" -Value 999999
+Write-Host "MaxInstanceCount = 999999" -ForegroundColor Green
+Start-Sleep 1 
+Set-ItemProperty -Path $HKLMPath -Name "fSingleSessionPerUser" -Value 0
+Write-Host "fSingleSessionPerUser = 0" -ForegroundColor Green
+Start-Sleep 1 
+if (!(Test-Path $HKCUPath)){ New-Item -Path $HKCUPath }
+Set-ItemProperty -Path $HKCUPath -Name "DisableLockWorkstation" -Value 1
+Write-Host "DisableLockWorkstation = 1" -ForegroundColor Green
+Start-Sleep 1 
+####################################################################
+
+
+
 Write-Host "Установка завершена. Нажмите Enter и перезагрузите компьютер"
 Read-Host
 Restart-Computer -Confirm:$true
